@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Poker Hand Evaluator</title>
+  <meta name="description" content="Enter your 2 cards and the board to see your best poker hand and how strong it is.">
+
+  <!-- PWA / iPhone -->
+  <meta name="theme-color" content="#0c3a22">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Poker Hand">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="manifest" href="manifest.json">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <h1><span class="logo" aria-hidden="true">♠&#xFE0E;</span> Hand Evaluator</h1>
+      <button type="button" class="btn-clear" id="clear-all">Clear All</button>
+    </header>
+
+    <section class="zone" aria-labelledby="board-title">
+      <div class="zone-head">
+        <h2 id="board-title">Board</h2>
+        <span class="stage-chip" id="stage-chip">Waiting for flop</span>
+      </div>
+      <div class="slots slots-board" id="board-slots"></div>
+    </section>
+
+    <section class="zone zone-hand" aria-labelledby="hand-title">
+      <div class="zone-head">
+        <h2 id="hand-title">Your Hand</h2>
+      </div>
+      <div class="slots slots-hand" id="hand-slots"></div>
+    </section>
+
+    <section class="result" id="result" aria-live="polite">
+      <div class="res-hint" id="res-hint">
+        <div class="hint-suits" aria-hidden="true">
+          <span>♠&#xFE0E;</span><span class="red">♥&#xFE0E;</span><span class="red">♦&#xFE0E;</span><span>♣&#xFE0E;</span>
+        </div>
+        <p class="hint-main">Enter your 2 cards and at least 3 board cards to see your hand</p>
+        <p class="hint-sub" id="hint-sub"></p>
+      </div>
+
+      <div class="res-body" id="res-body" hidden>
+        <div class="res-top">
+          <span class="res-stage" id="res-stage"></span>
+          <span class="chip-up" id="chip-up" hidden></span>
+        </div>
+        <div class="res-name" id="res-name"></div>
+        <div class="res-desc" id="res-desc"></div>
+        <div class="res-meter">
+          <div class="res-score"><strong id="res-rank">0</strong> out of 10</div>
+          <div class="bar" id="res-bar" aria-hidden="true"></div>
+        </div>
+        <div class="res-best-label">Your best 5 cards</div>
+        <div class="res-cards" id="res-cards"></div>
+        <p class="res-note" id="res-note" hidden></p>
+      </div>
+    </section>
+
+    <details class="cheat" id="cheat">
+      <summary>Hand Rankings</summary>
+      <ol class="cheat-list" id="cheat-list"></ol>
+    </details>
+  </main>
+
+  <!-- Bottom-sheet picker (rank → suit, or change/remove) -->
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-grip" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <button type="button" class="sheet-btn" id="sheet-back" aria-label="Back">‹ Back</button>
+        <div class="sheet-titles">
+          <h3 id="sheet-title"></h3>
+          <p id="sheet-sub"></p>
+        </div>
+        <button type="button" class="sheet-btn sheet-close" id="sheet-close" aria-label="Close">✕</button>
+      </div>
+      <div class="sheet-body" id="sheet-body"></div>
+    </div>
+  </div>
+
+  <script src="evaluator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
