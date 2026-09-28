@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Evaluator Tests</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; background: #0c3a22; color: #f3f7f1; margin: 0; padding: 16px; }
+    h1 { font-size: 20px; }
+    pre { white-space: pre-wrap; margin: 4px 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+    .ok { background: rgba(126, 240, 174, 0.12); }
+    .fail { background: rgba(255, 110, 110, 0.25); }
+  </style>
+</head>
+<body>
+  <h1>Poker evaluator tests</h1>
+  <div id="results">Running… (the exhaustive test takes a few seconds)</div>
+  <script src="../evaluator.js"></script>
+  <script>setTimeout(function () { var s = document.createElement('script'); s.src = 'evaluator.test.js'; document.body.appendChild(s); }, 50);</script>
+</body>
+</html>
