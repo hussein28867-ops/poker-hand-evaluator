@@ -1,12 +1,13 @@
-/* app.js — UI for the hand evaluator. All poker logic lives in evaluator.js. */
+/* app.js \u2014 UI for the hand evaluator. All poker logic lives in evaluator.js. */
 (function () {
   'use strict';
 
   const E = window.PokerEvaluator;
-  const STORAGE_KEY = 'poker-hand-evaluator:v1';
+  const S = window.PokerScoring;
+  const STORAGE_KEY = 'poker-hand-evaluator:v2';
   const RANK_PICKER = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
   const SUIT_PICKER = ['s', 'h', 'd', 'c'];
-  const TEXT_VS = '︎'; // keep ♥ ♦ ♠ ♣ as text, never emoji
+  const TEXT_VS = '\ufe0e'; // keep \u2665 \u2666 \u2660 \u2663 as text, never emoji
   const SLOT_LABELS = {
     board: ['Flop', 'Flop', 'Flop', 'Turn', 'River'],
     hand: ['Card 1', 'Card 2'],
@@ -14,8 +15,9 @@
   const ZONE_NAMES = { board: 'Board', hand: 'Your Hand' };
 
   const state = { board: [null, null, null, null, null], hand: [null, null] };
-  let lastResult = null;   // result currently shown, to detect changes/improvements
-  let picker = null;       // { zone, index, returnFocus }
+  let lastResult = null;      // official result currently shown, to detect changes/improvements
+  let lastHouseTotal = null;  // House Points total currently shown, to detect increases
+  let picker = null;          // { zone, index, returnFocus }
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -34,7 +36,13 @@
     bar: $('res-bar'),
     cards: $('res-cards'),
     note: $('res-note'),
+    rankMax: $('res-rank-max'),
     cheatList: $('cheat-list'),
+    houseBody: $('house-body'),
+    houseEmpty: $('house-empty'),
+    houseTotal: $('house-total'),
+    houseChipUp: $('house-chip-up'),
+    houseBreakdown: $('house-breakdown'),
     backdrop: $('backdrop'),
     sheetTitle: $('sheet-title'),
     sheetSub: $('sheet-sub'),
@@ -52,7 +60,7 @@
       const valid = (arr, n) => Array.isArray(arr) && arr.length === n;
       if (valid(saved.board, 5) && valid(saved.hand, 2)) {
         const all = saved.board.concat(saved.hand);
-        if (E.findDuplicates(all).length === 0) {
+        if (E.findExcessCards(all).length === 0) {
           all.forEach((c) => { if (c) E.parseCard(c); }); // throws on garbage
           state.board = saved.board;
           state.hand = saved.hand;
@@ -143,16 +151,19 @@
   // ---------- Result panel ----------
 
   function buildStaticParts() {
-    for (let i = 0; i < 10; i++) {
+    const n = E.RANK_COUNT;
+    els.rankMax.textContent = 'out of ' + n;
+    for (let i = 0; i < n; i++) {
       const seg = el('div', 'seg');
-      // red → amber → green across the 10 segments
-      seg.style.setProperty('--seg', 'hsl(' + Math.round(4 + i * 13) + ', 78%, 56%)');
+      // red \u2192 amber \u2192 green across the segments
+      seg.style.setProperty('--seg', 'hsl(' + Math.round(4 + i * (130 / (n - 1))) + ', 78%, 56%)');
       els.bar.appendChild(seg);
     }
+    els.bar.style.gridTemplateColumns = 'repeat(' + n + ', 1fr)';
     E.HAND_RANKINGS.forEach((h) => {
       const li = el('li');
       li.dataset.rank = String(h.rank);
-      li.appendChild(el('span', 'num', h.rank + '/10'));
+      li.appendChild(el('span', 'num', h.rank + '/' + n));
       li.appendChild(el('span', 'nm', h.name));
       li.appendChild(el('span', 'ex', h.example));
       els.cheatList.appendChild(li);
@@ -173,12 +184,14 @@
     if (!result) {
       els.hint.hidden = false;
       els.body.hidden = true;
+      els.houseBody.hidden = true;
       const need = [];
       if (hand.length < 2) need.push((2 - hand.length) + ' of your cards');
       if (board.length < 3) need.push((3 - board.length) + ' more board card' + (3 - board.length === 1 ? '' : 's'));
       els.hintSub.textContent = need.length ? 'Still needed: ' + need.join(' and ') : '';
       highlightCheat(0);
       lastResult = null;
+      lastHouseTotal = null;
       return null;
     }
 
@@ -187,7 +200,7 @@
 
     els.hint.hidden = true;
     els.body.hidden = false;
-    els.stage.textContent = result.stage + ' · ' + result.totalCards + ' cards';
+    els.stage.textContent = result.stage + ' \u00b7 ' + result.totalCards + ' cards';
     els.name.textContent = result.name;
     els.desc.textContent = result.description;
     els.rank.textContent = String(result.rank);
@@ -199,7 +212,7 @@
 
     if (result.boardPlays) {
       els.note.hidden = false;
-      els.note.textContent = 'The board plays — your 2 cards don’t improve on the 5 community cards, so everyone still in the hand has at least this.';
+      els.note.textContent = 'The board plays \u2014 your 2 cards don\u2019t improve on the 5 community cards, so everyone still in the hand has at least this.';
     } else {
       els.note.hidden = true;
     }
@@ -208,8 +221,8 @@
       if (lastResult && result.score > lastResult.score) {
         els.chipUp.hidden = false;
         els.chipUp.textContent = result.rank > lastResult.rank
-          ? '▲ Up from ' + lastResult.name
-          : '▲ Stronger ' + result.name;
+          ? '\u25b2 Up from ' + lastResult.name
+          : '\u25b2 Stronger ' + result.name;
       } else {
         els.chipUp.hidden = true;
       }
@@ -220,7 +233,47 @@
 
     highlightCheat(result.rank);
     lastResult = result;
+
+    renderHouse(hand, board);
+
     return result;
+  }
+
+  function renderHouse(hand, board) {
+    const house = S.computeHousePoints(hand, board);
+    els.houseBody.hidden = !house;
+    if (!house) { lastHouseTotal = null; return; }
+
+    const changed = lastHouseTotal === null || lastHouseTotal !== house.total;
+
+    els.houseTotal.textContent = String(house.total);
+    els.houseBreakdown.textContent = '';
+    if (house.breakdown.length === 0) {
+      els.houseEmpty.hidden = false;
+    } else {
+      els.houseEmpty.hidden = true;
+      house.breakdown.forEach((line) => {
+        const li = el('li');
+        const parts = /^(.*): \+(\d+)$/.exec(line.label);
+        li.appendChild(el('span', 'house-line-label', parts ? parts[1] : line.label));
+        li.appendChild(el('span', 'house-line-points', '+' + line.points));
+        els.houseBreakdown.appendChild(li);
+      });
+    }
+
+    if (changed) {
+      if (lastHouseTotal !== null && house.total > lastHouseTotal) {
+        els.houseChipUp.hidden = false;
+        els.houseChipUp.textContent = '\u25b2 +' + (house.total - lastHouseTotal);
+      } else {
+        els.houseChipUp.hidden = true;
+      }
+      els.houseBody.classList.remove('changed');
+      void els.houseBody.offsetWidth; // restart the animation
+      els.houseBody.classList.add('changed');
+    }
+
+    lastHouseTotal = house.total;
   }
 
   function highlightCheat(rank) {
@@ -262,8 +315,8 @@
 
   function slotName(zone, index) {
     return zone === 'board'
-      ? 'Board · ' + SLOT_LABELS.board[index] + (index < 3 ? ' card ' + (index + 1) : ' card')
-      : 'Your Hand · ' + SLOT_LABELS.hand[index];
+      ? 'Board \u00b7 ' + SLOT_LABELS.board[index] + (index < 3 ? ' card ' + (index + 1) : ' card')
+      : 'Your Hand \u00b7 ' + SLOT_LABELS.hand[index];
   }
 
   function onSlotTap(zone, index, button) {
@@ -304,7 +357,7 @@
     RANK_PICKER.forEach((r) => {
       const b = el('button', 'rank-btn', E.rankLabel(r));
       b.type = 'button';
-      // A rank is only unavailable when all 4 of its suits are already on the table.
+      // A rank is only unavailable once every suit has all MAX_COPIES copies on the table.
       b.disabled = SUIT_PICKER.every((s) => !E.isCardAvailable(r + s, taken));
       b.setAttribute('aria-label', E.RANK_NAMES[E.parseCard(r + 's').rank] + (b.disabled ? ', all used' : ''));
       b.addEventListener('click', () => showSuits(r));
@@ -317,7 +370,7 @@
 
   function showSuits(rank) {
     const current = state[picker.zone][picker.index];
-    setSheet('Pick a suit', E.rankLabel(rank) + ' of …', true);
+    setSheet('Pick a suit', E.rankLabel(rank) + ' of \u2026', true);
     picker.backTo = 'ranks';
     const taken = placedExcept(picker.zone, picker.index);
     const grid = el('div', 'suit-grid');
@@ -327,11 +380,21 @@
       b.type = 'button';
       b.appendChild(el('span', 'big', E.rankLabel(rank) + E.SUIT_SYMBOLS[s] + TEXT_VS));
       b.appendChild(el('span', 'name', E.SUIT_NAMES[s]));
-      const available = E.isCardAvailable(code, taken);
+      const count = E.countCopies(code, taken);
+      const available = count < E.MAX_COPIES;
       b.disabled = !available;
-      if (!available) b.appendChild(el('span', 'tag', 'In use'));
-      if (code === current) { b.classList.add('current'); b.appendChild(el('span', 'tag', 'Current')); }
-      b.setAttribute('aria-label', spokenCard(code) + (available ? '' : ', already in use'));
+      // Four decks: up to MAX_COPIES of the exact same card can be on the table at once.
+      const tagTexts = [];
+      if (!available) tagTexts.push('All ' + E.MAX_COPIES + ' placed');
+      else if (count > 0) tagTexts.push(count + ' of ' + E.MAX_COPIES + ' placed');
+      if (code === current) { b.classList.add('current'); tagTexts.push('Current'); }
+      if (tagTexts.length) {
+        const stack = el('div', 'tag-stack');
+        tagTexts.forEach((t) => stack.appendChild(el('span', 'tag', t)));
+        b.appendChild(stack);
+      }
+      b.setAttribute('aria-label', spokenCard(code) +
+        (available ? (count > 0 ? ', ' + count + ' already placed' : '') : ', all ' + E.MAX_COPIES + ' copies already placed'));
       b.addEventListener('click', () => {
         if (!E.isCardAvailable(code, placedExcept(picker.zone, picker.index))) return;
         state[picker.zone][picker.index] = code;
@@ -358,6 +421,7 @@
     state.board = [null, null, null, null, null];
     state.hand = [null, null];
     lastResult = null;
+    lastHouseTotal = null;
     save();
     render();
   });
@@ -371,6 +435,8 @@
   // Don't animate the very first paint after a reload.
   els.body.classList.remove('changed');
   els.chipUp.hidden = true;
+  els.houseBody.classList.remove('changed');
+  els.houseChipUp.hidden = true;
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     window.addEventListener('load', () => {
