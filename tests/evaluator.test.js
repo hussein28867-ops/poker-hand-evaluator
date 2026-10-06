@@ -1,5 +1,5 @@
 /*
- * Tests for evaluator.js.
+ * Tests for evaluator.js (four-deck rules: repeats allowed, 11 hand ranks).
  *   Node:    node tests/evaluator.test.js
  *   Browser: open tests/index.html
  */
@@ -29,17 +29,24 @@
   }
   const sameSet = (a, b) => a.slice().sort().join() === b.slice().sort().join();
 
-  // ---------- Every hand type ----------
+  // ---------- Every official hand type (11 ranks, strongest = 11) ----------
 
-  test('Royal Flush is 10/10', () => {
+  test('Royal Flush is 11/11', () => {
     const r = ev('As Ks Qs Js Ts');
-    eq(r.rank, 10); eq(r.name, 'Royal Flush'); eq(r.description, 'Ace to Ten, all Spades');
+    eq(r.rank, 11); eq(r.name, 'Royal Flush'); eq(r.description, 'Ace to Ten, all Spades');
   });
 
-  test('Straight Flush is 9/10', () => {
+  test('Five of a Kind is 10/11 (needs four decks)', () => {
+    const r = ev('9h 9h 9d 9d 9c');
+    eq(r.rank, 10); eq(r.name, 'Five of a Kind'); eq(r.description, 'Five Nines');
+    eq(E.compareHands(r, ev('As Ks Qs Js Ts')), -1, 'five of a kind loses to royal flush');
+  });
+
+  test('Straight Flush is 9/11', () => {
     const r = ev('9h 8h 7h 6h 5h');
     eq(r.rank, 9); eq(r.name, 'Straight Flush');
     eq(r.description, 'Nine-high Straight Flush in Hearts');
+    eq(E.compareHands(ev('9h 9h 9d 9d 9c'), r), 1, 'five of a kind beats straight flush');
   });
 
   test('Four of a Kind with kicker', () => {
@@ -204,20 +211,48 @@
     eq(r2.boardPlays, false);
   });
 
-  // ---------- Duplicate prevention and input validation ----------
+  // ---------- Four decks: repeats allowed, deck-limit validation ----------
 
-  test('Duplicate cards are rejected by the evaluator', () => {
-    throws(() => ev('As As Kd Qh Jc'), /Duplicate card: As/);
-    throws(() => E.evaluatePlayerHand(['Th', 'Kd'], ['10h', '2c', '3d']), /Duplicate card: Th/);
+  test('The same exact card may appear up to 4 times (four decks)', () => {
+    const r = ev('5h 5h 5h 5h 9c');
+    eq(r.rank, 8); eq(r.name, 'Four of a Kind'); eq(r.description, 'Four Fives with Nine kicker');
   });
 
-  test('isCardAvailable blocks a card already placed (used by the suit picker)', () => {
+  test('A 5th copy of the same exact card is rejected (deck limit)', () => {
+    throws(() => ev('5h 5h 5h 5h 5h'), /Only 4 copies.*5h/);
+  });
+
+  test('A repeated card inside a flush still counts as a flush', () => {
+    const r = ev('2h 2h 5h 9h Kh');
+    eq(r.rank, 6); eq(r.name, 'Flush'); eq(r.description, 'Flush in Hearts, King high');
+  });
+
+  test('Five of a kind from mixed suits across decks', () => {
+    const r = ev('9h 9h 9d 9d 9c');
+    eq(r.rank, 10); eq(r.name, 'Five of a Kind');
+  });
+
+  test('isCardAvailable allows up to 4 copies, blocks the 5th', () => {
+    const placed = ['5h', '5h', '5h', 'Kd'];
+    eq(E.isCardAvailable('5h', placed), true, '3 placed, a 4th is still fine');
+    eq(E.isCardAvailable('5h', placed.concat('5h')), false, '4 placed, a 5th is blocked');
+    eq(E.countCopies('5h', placed), 3);
+    eq(E.findExcessCards(['5h', '5h', '5h', '5h', '5h']), ['5h']);
+    eq(E.findExcessCards(['5h', '5h', '5h', '5h']), []);
+  });
+
+  test('A straight still needs 5 DIFFERENT consecutive ranks, even with repeats available', () => {
+    // Two 7s plus 5,6,8,9: no 5-rank run exists, so this is not a straight.
+    const r = ev('5h 6h 7h 7d 8c 9s');
+    eq(r.rank, 5); eq(r.description, 'Straight, Nine high');
+  });
+
+  // ---------- Duplicate / invalid input ----------
+
+  test('isCardAvailable blocks a 5th exact copy (used by the suit picker)', () => {
     const placed = ['5h', null, 'Kd', null, null, 'As', null];
-    eq(E.isCardAvailable('5h', placed), false);
-    eq(E.isCardAvailable('As', placed), false);
     eq(E.isCardAvailable('5d', placed), true);
-    eq(E.isCardAvailable('10c', ['Tc']), false, '"10c" and "Tc" are the same card');
-    eq(E.findDuplicates(['As', 'Kd', 'As', '9c', '9c']), ['As', '9c']);
+    eq(E.isCardAvailable('10c', ['Tc', 'Tc', 'Tc', 'Tc']), false, '"10c" and "Tc" are the same card');
   });
 
   test('Invalid input is rejected', () => {
@@ -225,16 +260,16 @@
     throws(() => ev('As Kd Qh Jc Tc 9c 8c 7c'), /between 5 and 7/);
     throws(() => E.parseCard('1s'), /Invalid card/);
     throws(() => E.parseCard('Ax'), /Invalid card/);
-    eq(E.parseCard('10♥').code, 'Th');
-    eq(E.displayCard('Th'), '10♥');
+    eq(E.parseCard('10\u2665').code, 'Th');
+    eq(E.displayCard('Th'), '10\u2665');
   });
 
-  // ---------- Exhaustive proof ----------
+  // ---------- Exhaustive proof (single deck, no repeats: a sanity check that four-deck changes didn't disturb classic poker math) ----------
 
-  test('Exhaustive: all 2,598,960 five-card hands have the known category counts and 7,462 distinct strengths', () => {
+  test('Exhaustive: all 2,598,960 five-card hands (no repeats) match known category counts and 7,462 distinct strengths', () => {
     const deck = [];
     for (const r of E.RANK_CHARS) for (const s of E.SUIT_CHARS) deck.push(E.parseCard(r + s));
-    const counts = new Array(11).fill(0);
+    const counts = new Array(E.RANK_COUNT + 1).fill(0);
     const distinct = new Set();
     let total = 0;
     for (let a = 0; a < 48; a++)
@@ -248,7 +283,9 @@
               total++;
             }
     eq(total, 2598960);
-    eq(counts.slice(1), [1302540, 1098240, 123552, 54912, 10200, 5108, 3744, 624, 36, 4],
+    // rank: 1 highCard, 2 onePair, 3 twoPair, 4 trips, 5 straight, 6 flush,
+    // 7 fullHouse, 8 fourKind, 9 straightFlush, 10 fiveOfAKind (impossible, single deck), 11 royalFlush.
+    eq(counts.slice(1), [1302540, 1098240, 123552, 54912, 10200, 5108, 3744, 624, 36, 0, 4],
       'counts for High Card .. Royal Flush');
     eq(distinct.size, 7462, 'distinct hand strengths');
   });
@@ -270,13 +307,13 @@
   const summary = passed + ' / ' + tests.length + ' tests passed';
 
   if (isNode) {
-    lines.forEach((l) => console.log((l.ok ? '  ✓ ' : '  ✗ ') + l.text));
+    lines.forEach((l) => console.log((l.ok ? '  \u2713 ' : '  \u2717 ') + l.text));
     console.log('\n' + summary);
     if (passed !== tests.length) process.exitCode = 1;
   } else {
     const out = document.getElementById('results');
     out.innerHTML = '<h2>' + summary + '</h2>' + lines.map((l) =>
-      '<pre class="' + (l.ok ? 'ok' : 'fail') + '">' + (l.ok ? '✓ ' : '✗ ') +
+      '<pre class="' + (l.ok ? 'ok' : 'fail') + '">' + (l.ok ? '\u2713 ' : '\u2717 ') +
       l.text.replace(/</g, '&lt;') + '</pre>').join('');
   }
 })();
