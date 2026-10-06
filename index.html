@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Poker Hand Evaluator</title>
-  <meta name="description" content="Enter your 2 cards and the board to see your best poker hand and how strong it is.">
+  <meta name="description" content="Four-deck poker hand evaluator: enter your 2 cards and the board to see your official hand and your House Points.">
 
   <!-- PWA / iPhone -->
   <meta name="theme-color" content="#0c3a22">
@@ -22,7 +22,7 @@
 <body>
   <main class="app">
     <header class="topbar">
-      <h1><span class="logo" aria-hidden="true">♠&#xFE0E;</span> Hand Evaluator</h1>
+      <h1><span class="logo" aria-hidden="true">&#x2660;&#xFE0E;</span> Hand Evaluator</h1>
       <button type="button" class="btn-clear" id="clear-all">Clear All</button>
     </header>
 
@@ -41,16 +41,17 @@
       <div class="slots slots-hand" id="hand-slots"></div>
     </section>
 
-    <section class="result" id="result" aria-live="polite">
+    <section class="result-wrap" id="result" aria-live="polite">
       <div class="res-hint" id="res-hint">
         <div class="hint-suits" aria-hidden="true">
-          <span>♠&#xFE0E;</span><span class="red">♥&#xFE0E;</span><span class="red">♦&#xFE0E;</span><span>♣&#xFE0E;</span>
+          <span>&#x2660;&#xFE0E;</span><span class="red">&#x2665;&#xFE0E;</span><span class="red">&#x2666;&#xFE0E;</span><span>&#x2663;&#xFE0E;</span>
         </div>
         <p class="hint-main">Enter your 2 cards and at least 3 board cards to see your hand</p>
         <p class="hint-sub" id="hint-sub"></p>
       </div>
 
-      <div class="res-body" id="res-body" hidden>
+      <div class="result panel-official" id="res-body" hidden>
+        <div class="panel-label">Official Ranking</div>
         <div class="res-top">
           <span class="res-stage" id="res-stage"></span>
           <span class="chip-up" id="chip-up" hidden></span>
@@ -58,12 +59,22 @@
         <div class="res-name" id="res-name"></div>
         <div class="res-desc" id="res-desc"></div>
         <div class="res-meter">
-          <div class="res-score"><strong id="res-rank">0</strong> out of 10</div>
+          <div class="res-score"><strong id="res-rank">0</strong> <span id="res-rank-max">out of 10</span></div>
           <div class="bar" id="res-bar" aria-hidden="true"></div>
         </div>
         <div class="res-best-label">Your best 5 cards</div>
         <div class="res-cards" id="res-cards"></div>
         <p class="res-note" id="res-note" hidden></p>
+      </div>
+
+      <div class="result panel-house" id="house-body" hidden>
+        <div class="panel-label">House Points</div>
+        <div class="house-top">
+          <div class="house-total"><strong id="house-total">0</strong><span>points</span></div>
+          <span class="chip-up" id="house-chip-up" hidden></span>
+        </div>
+        <p class="house-empty" id="house-empty" hidden>No House Points on this hand yet.</p>
+        <ol class="house-breakdown" id="house-breakdown"></ol>
       </div>
     </section>
 
@@ -73,23 +84,24 @@
     </details>
   </main>
 
-  <!-- Bottom-sheet picker (rank → suit, or change/remove) -->
+  <!-- Bottom-sheet picker (rank &#x2192; suit, or change/remove) -->
   <div class="backdrop" id="backdrop" aria-hidden="true">
     <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-grip" aria-hidden="true"></div>
       <div class="sheet-head">
-        <button type="button" class="sheet-btn" id="sheet-back" aria-label="Back">‹ Back</button>
+        <button type="button" class="sheet-btn" id="sheet-back" aria-label="Back">&#x2039; Back</button>
         <div class="sheet-titles">
           <h3 id="sheet-title"></h3>
           <p id="sheet-sub"></p>
         </div>
-        <button type="button" class="sheet-btn sheet-close" id="sheet-close" aria-label="Close">✕</button>
+        <button type="button" class="sheet-btn sheet-close" id="sheet-close" aria-label="Close">&#x2715;</button>
       </div>
       <div class="sheet-body" id="sheet-body"></div>
     </div>
   </div>
 
   <script src="evaluator.js"></script>
+  <script src="scoring.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
