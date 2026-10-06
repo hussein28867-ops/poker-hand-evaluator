@@ -2,7 +2,7 @@
  * Service worker: makes the app work offline.
  * When you change any file, bump CACHE_VERSION so phones pick up the new version.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'poker-hand-evaluator-' + CACHE_VERSION;
 const ASSETS = [
   './',
@@ -10,6 +10,7 @@ const ASSETS = [
   'styles.css',
   'app.js',
   'evaluator.js',
+  'scoring.js',
   'manifest.json',
   'icons/apple-touch-icon.png',
   'icons/favicon-32.png',
