@@ -1,10 +1,15 @@
 /*
- * evaluator.js — Texas Hold'em hand evaluation. Pure logic, no DOM.
+ * evaluator.js \u2014 Poker hand evaluation, played with FOUR decks. Pure logic, no DOM.
  *
  * Cards are 2-character codes: rank + suit.
  *   Ranks: 2 3 4 5 6 7 8 9 T J Q K A   ("10" is also accepted and stored as "T")
- *   Suits: s h d c                      (♠ ♥ ♦ ♣ are also accepted)
+ *   Suits: s h d c                      (\u2660 \u2665 \u2666 \u2663 are also accepted)
  *   Examples: "As", "Td", "5h", "10c"
+ *
+ * With four decks in play, the exact same card (e.g. 5\u2665) can appear up to
+ * MAX_COPIES (4) times across all slots at once. A straight still needs 5
+ * DIFFERENT consecutive ranks; a flush allows repeated cards; Five of a
+ * Kind is now a real, reachable hand.
  *
  * Works in the browser (window.PokerEvaluator) and in Node (require).
  */
@@ -17,25 +22,39 @@
   const RANK_CHARS = '23456789TJQKA';
   const SUIT_CHARS = 'shdc';
   const SUIT_NAMES = { s: 'Spades', h: 'Hearts', d: 'Diamonds', c: 'Clubs' };
-  const SUIT_SYMBOLS = { s: '♠', h: '♥', d: '♦', c: '♣' };
+  const SUIT_SYMBOLS = { s: '\u2660', h: '\u2665', d: '\u2666', c: '\u2663' };
   // Indexed by numeric rank value (2..14).
   const RANK_NAMES = [null, null, 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven',
     'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace'];
   const RANK_PLURALS = [null, null, 'Twos', 'Threes', 'Fours', 'Fives', 'Sixes', 'Sevens',
     'Eights', 'Nines', 'Tens', 'Jacks', 'Queens', 'Kings', 'Aces'];
+  const FACE_RANKS = [11, 12, 13, 14]; // Jack, Queen, King, Ace
 
-  const HAND_RANKINGS = [
-    { rank: 10, name: 'Royal Flush', example: 'A K Q J 10, all one suit' },
-    { rank: 9, name: 'Straight Flush', example: 'Five in a row, all one suit' },
-    { rank: 8, name: 'Four of a Kind', example: 'Four cards of one rank' },
-    { rank: 7, name: 'Full House', example: 'Three of a kind plus a pair' },
-    { rank: 6, name: 'Flush', example: 'Any five cards of one suit' },
-    { rank: 5, name: 'Straight', example: 'Five in a row, mixed suits' },
-    { rank: 4, name: 'Three of a Kind', example: 'Three cards of one rank' },
-    { rank: 3, name: 'Two Pair', example: 'Two different pairs' },
-    { rank: 2, name: 'One Pair', example: 'Two cards of one rank' },
-    { rank: 1, name: 'High Card', example: 'None of the above' },
+  // Four decks: the exact same card (rank + suit) may appear this many times.
+  const MAX_COPIES = 4;
+
+  // Strongest first. Reorder this list to change the official ranking \u2014
+  // each hand's numeric rank (shown as "X out of N") is derived from its
+  // position, so nothing else needs to change.
+  const HAND_RANKING_CONFIG = [
+    { key: 'royalFlush', name: 'Royal Flush', example: 'A K Q J 10, all one suit' },
+    { key: 'fiveOfAKind', name: 'Five of a Kind', example: 'Five cards of one rank (needs multiple decks)' },
+    { key: 'straightFlush', name: 'Straight Flush', example: 'Five in a row, all one suit' },
+    { key: 'fourOfAKind', name: 'Four of a Kind', example: 'Four cards of one rank' },
+    { key: 'fullHouse', name: 'Full House', example: 'Three of a kind plus a pair' },
+    { key: 'flush', name: 'Flush', example: 'Any five cards of one suit' },
+    { key: 'straight', name: 'Straight', example: 'Five different ranks in a row, mixed suits' },
+    { key: 'threeOfAKind', name: 'Three of a Kind', example: 'Three cards of one rank' },
+    { key: 'twoPair', name: 'Two Pair', example: 'Two different pairs' },
+    { key: 'onePair', name: 'One Pair', example: 'Two cards of one rank' },
+    { key: 'highCard', name: 'High Card', example: 'None of the above' },
   ];
+  const RANK_COUNT = HAND_RANKING_CONFIG.length;
+  const HAND_RANKINGS = HAND_RANKING_CONFIG.map((h, i) => ({
+    key: h.key, name: h.name, example: h.example, rank: RANK_COUNT - i,
+  }));
+  const RANK_BY_KEY = {};
+  HAND_RANKINGS.forEach((h) => { RANK_BY_KEY[h.key] = h.rank; });
   const HAND_NAMES = {};
   HAND_RANKINGS.forEach((h) => { HAND_NAMES[h.rank] = h.name; });
 
@@ -55,8 +74,8 @@
     if (input && typeof input === 'object' && typeof input.code === 'string') return parseCard(input.code);
     if (typeof input !== 'string') throw new Error('Invalid card: ' + String(input));
     const s = input.trim()
-      .replace(/[︎️]/g, '')
-      .replace('♠', 's').replace('♥', 'h').replace('♦', 'd').replace('♣', 'c');
+      .replace(/[\ufe0e\ufe0f]/g, '')
+      .replace('\u2660', 's').replace('\u2665', 'h').replace('\u2666', 'd').replace('\u2663', 'c');
     const m = /^(10|[2-9tjqka])([shdc])$/i.exec(s);
     if (!m) throw new Error('Invalid card: ' + input);
     const r = m[1] === '10' ? 'T' : m[1].toUpperCase();
@@ -66,7 +85,7 @@
 
   function normalizeCode(card) { return parseCard(card).code; }
 
-  /** Human-friendly label, e.g. "Th" -> "10♥". */
+  /** Human-friendly label, e.g. "Th" -> "10\u2665". */
   function displayCard(card) {
     const c = parseCard(card);
     return rankLabel(c.code[0]) + SUIT_SYMBOLS[c.suit];
@@ -76,27 +95,30 @@
 
   function isRed(card) { const s = parseCard(card).suit; return s === 'h' || s === 'd'; }
 
-  /** Codes that appear more than once in the list (after normalizing "10h" -> "Th" etc). */
-  function findDuplicates(cards) {
-    const seen = new Set();
-    const dups = new Set();
-    cards.filter(Boolean).forEach((c) => {
-      const code = normalizeCode(c);
-      if (seen.has(code)) dups.add(code);
-      seen.add(code);
-    });
-    return Array.from(dups);
+  /** How many times this exact card (rank + suit) appears in the list. */
+  function countCopies(card, cardList) {
+    const code = normalizeCode(card);
+    return (cardList || []).filter((c) => c && normalizeCode(c) === code).length;
   }
 
-  /** True if `card` is not already among `placedCards`. Used by the UI to block duplicates. */
+  /** Exact cards (after normalizing "10h" -> "Th" etc) that appear more than MAX_COPIES times. */
+  function findExcessCards(cards) {
+    const counts = {};
+    cards.filter(Boolean).forEach((c) => {
+      const code = normalizeCode(c);
+      counts[code] = (counts[code] || 0) + 1;
+    });
+    return Object.keys(counts).filter((code) => counts[code] > MAX_COPIES);
+  }
+
+  /** True if one more of this exact card could still be placed (four decks allow up to MAX_COPIES). */
   function isCardAvailable(card, placedCards) {
-    const code = normalizeCode(card);
-    return !(placedCards || []).some((p) => p && normalizeCode(p) === code);
+    return countCopies(card, placedCards) < MAX_COPIES;
   }
 
   /**
    * Evaluate exactly 5 parsed cards.
-   * Returns { category (1..10), tiebreak (rank values, most significant first), score, cards }.
+   * Returns { category (1..RANK_COUNT), key, tiebreak, score, cards }.
    * `score` is a single number: higher always means a stronger hand, equal means a tie.
    */
   function evaluate5(cards) {
@@ -112,6 +134,8 @@
       .map((r) => ({ rank: +r, count: counts[r] }))
       .sort((a, b) => b.count - a.count || b.rank - a.rank);
 
+    // A straight needs 5 DIFFERENT consecutive ranks \u2014 groups.length === 5
+    // already guarantees no repeated rank among the five cards.
     let straightHigh = 0;
     if (groups.length === 5) {
       if (ranks[0] - ranks[4] === 4) straightHigh = ranks[0];
@@ -119,34 +143,37 @@
     }
 
     const g = groups.map((x) => x.rank);
-    let category;
+    let key;
     let tiebreak;
     if (straightHigh && isFlush) {
-      category = straightHigh === 14 ? 10 : 9;
+      key = straightHigh === 14 ? 'royalFlush' : 'straightFlush';
       tiebreak = [straightHigh];
+    } else if (groups[0].count === 5) {
+      key = 'fiveOfAKind'; tiebreak = g;
     } else if (groups[0].count === 4) {
-      category = 8; tiebreak = g;
+      key = 'fourOfAKind'; tiebreak = g;
     } else if (groups[0].count === 3 && groups[1].count === 2) {
-      category = 7; tiebreak = g;
+      key = 'fullHouse'; tiebreak = g;
     } else if (isFlush) {
-      category = 6; tiebreak = ranks;
+      key = 'flush'; tiebreak = ranks;
     } else if (straightHigh) {
-      category = 5; tiebreak = [straightHigh];
+      key = 'straight'; tiebreak = [straightHigh];
     } else if (groups[0].count === 3) {
-      category = 4; tiebreak = g;
+      key = 'threeOfAKind'; tiebreak = g;
     } else if (groups[0].count === 2 && groups[1].count === 2) {
-      category = 3; tiebreak = g;
+      key = 'twoPair'; tiebreak = g;
     } else if (groups[0].count === 2) {
-      category = 2; tiebreak = g;
+      key = 'onePair'; tiebreak = g;
     } else {
-      category = 1; tiebreak = ranks;
+      key = 'highCard'; tiebreak = ranks;
     }
 
+    const category = RANK_BY_KEY[key];
     // Pack category + up to 5 tiebreak ranks into one comparable number (base 16).
     let score = category;
     for (let i = 0; i < 5; i++) score = score * 16 + (tiebreak[i] || 0);
 
-    return { category: category, tiebreak: tiebreak, score: score, cards: cards, straightHigh: straightHigh, counts: counts };
+    return { category: category, key: key, tiebreak: tiebreak, score: score, cards: cards, straightHigh: straightHigh, counts: counts };
   }
 
   /** Order the best five for display: groups first (trips before pair), high to low; wheel puts the Ace last. */
@@ -158,31 +185,33 @@
       (SUIT_CHARS.indexOf(a.suit) - SUIT_CHARS.indexOf(b.suit)));
   }
 
-  function describe(category, tb, suit) {
+  function describe(key, tb, suit) {
     const N = (r) => RANK_NAMES[r];
     const P = (r) => RANK_PLURALS[r];
     const S = SUIT_NAMES[suit];
-    switch (category) {
-      case 10: return 'Ace to Ten, all ' + S;
-      case 9: return N(tb[0]) + '-high Straight Flush in ' + S + (tb[0] === 5 ? ' (A-2-3-4-5)' : '');
-      case 8: return 'Four ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
-      case 7: return P(tb[0]) + ' full of ' + P(tb[1]);
-      case 6: return 'Flush in ' + S + ', ' + N(tb[0]) + ' high';
-      case 5: return 'Straight, ' + N(tb[0]) + ' high' +
+    switch (key) {
+      case 'royalFlush': return 'Ace to Ten, all ' + S;
+      case 'fiveOfAKind': return 'Five ' + P(tb[0]);
+      case 'straightFlush': return N(tb[0]) + '-high Straight Flush in ' + S + (tb[0] === 5 ? ' (A-2-3-4-5)' : '');
+      case 'fourOfAKind': return 'Four ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
+      case 'fullHouse': return P(tb[0]) + ' full of ' + P(tb[1]);
+      case 'flush': return 'Flush in ' + S + ', ' + N(tb[0]) + ' high';
+      case 'straight': return 'Straight, ' + N(tb[0]) + ' high' +
         (tb[0] === 14 ? ' (Broadway)' : tb[0] === 5 ? ' (the Wheel: A-2-3-4-5)' : '');
-      case 4: return 'Three ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
-      case 3: return P(tb[0]) + ' and ' + P(tb[1]) + ' with ' + N(tb[2]) + ' kicker';
-      case 2: return 'Pair of ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
-      default: return N(tb[0]) + ' high with ' + N(tb[1]) + ' kicker';
+      case 'threeOfAKind': return 'Three ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
+      case 'twoPair': return P(tb[0]) + ' and ' + P(tb[1]) + ' with ' + N(tb[2]) + ' kicker';
+      case 'onePair': return 'Pair of ' + P(tb[0]) + ' with ' + N(tb[1]) + ' kicker';
+      default: return N(tb[0]) + ' high with ' + N(tb[1]) + ' kicker'; // highCard
     }
   }
 
   function finalize(ev) {
     const ordered = orderCards(ev);
     return {
-      rank: ev.category,                 // 1..10, 10 = strongest
+      rank: ev.category,                 // 1..RANK_COUNT, RANK_COUNT = strongest
+      key: ev.key,
       name: HAND_NAMES[ev.category],
-      description: describe(ev.category, ev.tiebreak, ordered[0].suit),
+      description: describe(ev.key, ev.tiebreak, ordered[0].suit),
       score: ev.score,                   // compare two hands with this
       tiebreak: ev.tiebreak.slice(),
       cards: ordered.map((c) => c.code), // the best five, display order
@@ -196,8 +225,10 @@
       throw new Error('Need between 5 and 7 cards, got ' + cards.length);
     }
     const parsed = cards.map(parseCard);
-    const dups = findDuplicates(parsed.map((c) => c.code));
-    if (dups.length) throw new Error('Duplicate card: ' + dups.join(', '));
+    const excess = findExcessCards(parsed.map((c) => c.code));
+    if (excess.length) {
+      throw new Error('Only ' + MAX_COPIES + ' copies of each card are allowed (four decks): ' + excess.join(', '));
+    }
 
     let best = null;
     const combos = COMBOS[parsed.length];
@@ -210,7 +241,7 @@
   }
 
   /**
-   * The app's entry point: the player's 2 hole cards plus 3–5 board cards.
+   * The app's entry point: the player's 2 hole cards plus 3\u20135 board cards.
    * Empty slots (null/undefined) are ignored. Returns null until there are
    * 2 hole cards and at least 3 board cards.
    */
@@ -228,7 +259,7 @@
     if (b.length === 5) {
       const boardOnly = evaluateHand(b);
       if (boardOnly.score === result.score) {
-        // Your hole cards don't beat the board by itself — show the board's five.
+        // Your hole cards don't beat the board by itself \u2014 show the board's five.
         result.boardPlays = true;
         result.cards = boardOnly.cards;
       }
@@ -250,13 +281,18 @@
     SUIT_NAMES: SUIT_NAMES,
     SUIT_SYMBOLS: SUIT_SYMBOLS,
     RANK_NAMES: RANK_NAMES,
+    RANK_PLURALS: RANK_PLURALS,
+    FACE_RANKS: FACE_RANKS,
+    MAX_COPIES: MAX_COPIES,
+    RANK_COUNT: RANK_COUNT,
     HAND_RANKINGS: HAND_RANKINGS,
     parseCard: parseCard,
     normalizeCode: normalizeCode,
     displayCard: displayCard,
     rankLabel: rankLabel,
     isRed: isRed,
-    findDuplicates: findDuplicates,
+    countCopies: countCopies,
+    findExcessCards: findExcessCards,
     isCardAvailable: isCardAvailable,
     evaluate5: evaluate5,
     evaluateHand: evaluateHand,
