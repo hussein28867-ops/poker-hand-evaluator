@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Evaluator Tests</title>
+  <title>Evaluator & Scoring Tests</title>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; background: #0c3a22; color: #f3f7f1; margin: 0; padding: 16px; }
     h1 { font-size: 20px; }
@@ -13,9 +13,17 @@
   </style>
 </head>
 <body>
-  <h1>Poker evaluator tests</h1>
-  <div id="results">Running… (the exhaustive test takes a few seconds)</div>
+  <h1>evaluator.js tests</h1>
+  <div id="results">Running&#x2026; (the exhaustive test takes a few seconds)</div>
+  <h1>scoring.js tests</h1>
+  <div id="scoring-results">Running&#x2026;</div>
   <script src="../evaluator.js"></script>
-  <script>setTimeout(function () { var s = document.createElement('script'); s.src = 'evaluator.test.js'; document.body.appendChild(s); }, 50);</script>
+  <script src="../scoring.js"></script>
+  <script>
+    setTimeout(function () {
+      var a = document.createElement('script'); a.src = 'evaluator.test.js'; document.body.appendChild(a);
+      var b = document.createElement('script'); b.src = 'scoring.test.js'; document.body.appendChild(b);
+    }, 50);
+  </script>
 </body>
 </html>
