@@ -243,7 +243,9 @@ button {
   line-height: 1;
 }
 
-/* ---------- Result panel ---------- */
+/* ---------- Result panels ---------- */
+
+.result-wrap { display: flex; flex-direction: column; gap: 14px; }
 
 .result {
   position: relative;
@@ -257,7 +259,25 @@ button {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
 }
 
-.res-hint { text-align: center; padding: 14px 6px 6px; }
+.res-hint {
+  text-align: center;
+  padding: 28px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.panel-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
 .hint-suits { display: flex; justify-content: center; gap: 10px; font-size: 22px; opacity: 0.55; }
 .hint-suits .red { color: #ff8a8a; }
 .hint-main { margin: 12px 0 6px; font-size: 17px; font-weight: 600; line-height: 1.35; }
@@ -330,9 +350,10 @@ button {
   line-height: 1.35;
 }
 
-/* Smooth update when the hand changes. */
-.res-body.changed { animation: res-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.res-body.changed .res-name { animation: res-glow 1.2s ease-out; }
+/* Smooth update when the hand changes (applies to both the official and House Points panels). */
+.result.changed { animation: res-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.result.changed .res-name,
+.result.changed .house-total strong { animation: res-glow 1.2s ease-out; }
 @keyframes res-pop {
   0% { opacity: 0.4; transform: translateY(6px) scale(0.985); }
   100% { opacity: 1; transform: none; }
@@ -341,6 +362,48 @@ button {
   0% { color: var(--gold); text-shadow: 0 0 18px rgba(242, 193, 78, 0.7); }
   100% { color: var(--ink); text-shadow: none; }
 }
+
+/* ---------- House Points panel ---------- */
+
+.house-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+
+.house-total {
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.house-total strong {
+  font-size: 38px;
+  font-size: clamp(30px, 10vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  color: var(--up);
+}
+.house-total span { font-size: 15px; color: var(--muted); font-weight: 650; }
+
+.house-empty { margin: 14px 0 0; font-size: 15px; color: var(--muted); line-height: 1.4; }
+
+.house-breakdown {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.house-breakdown li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.house-line-label { font-size: 14px; color: var(--ink); line-height: 1.3; }
+.house-line-points { font-size: 15px; font-weight: 750; color: var(--up); white-space: nowrap; }
 
 /* ---------- Cheat sheet ---------- */
 
@@ -362,7 +425,7 @@ button {
   list-style: none;
 }
 .cheat summary::-webkit-details-marker { display: none; }
-.cheat summary::after { content: "›"; font-size: 22px; color: var(--muted); transition: transform 0.2s ease; }
+.cheat summary::after { content: "\00203A"; font-size: 22px; color: var(--muted); transition: transform 0.2s ease; }
 .cheat[open] summary::after { transform: rotate(90deg); }
 
 .cheat-list { list-style: none; margin: 0; padding: 0 10px 12px; }
@@ -491,6 +554,17 @@ button {
   color: #55585e;
 }
 .suit-btn.current { box-shadow: 0 0 0 3px var(--gold); }
+
+.tag-stack {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.tag-stack .tag { position: static; }
 
 .action-card { width: 84px; margin: 0 auto 16px; aspect-ratio: 5 / 7; }
 .action-list { display: grid; gap: 10px; }
